@@ -1,4 +1,4 @@
-local URL = "https://raw.githubusercontent.com/itzstxx/x7s/refs/heads/main/x7s.lua"
+local URL = "https://raw.githubusercontent.com/itzstxx/x7sMovil/refs/heads/main/x7s.lua"
 
 local compiler = loadstring or load
 if type(compiler) ~= "function" then
