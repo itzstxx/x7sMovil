@@ -96,14 +96,7 @@ local function mkDefault()
         panel_bg=true, notifs=true, lang="English", gui_key="L",
         -- ✨ WHITELIST (nuevo sistema)
         Whitelist={},
-        -- === CAM LOCK ===
-        CamLockEnabled = false,
-        CamLockStrength = 30,
-        CamLockRange = 150,
-        CamLockWallCheck = true,
-        camlock_key = "F",
         fov_on = false, fov_visible = true, fov_radius = 120,
-        CamLockSafeZone = true,
         -- === TARGET ===
         TargetPart = "Random",
 
@@ -1448,21 +1441,6 @@ makeToggle(summerCard, "summer_on", "summer_on_d", "summer_on")
 
 
 -- ══ AIM PAGE ═══════════════════════════════════════════════════
-local camLockCard = makeCard(pg_aim)
-makeSecHeader(camLockCard, "x", "Cam Lock")
-makeToggle(camLockCard, "camlock_on", "camlock_on_d", "CamLockEnabled", function(on)
-    showNotif("✝  Cam Lock", on and L("n_on") or L("n_off"), on)
-end)
-makeDivider(camLockCard)
-makeSlider(camLockCard, "camlock_strength", "CamLockStrength", 1, 100)
-makeDivider(camLockCard)
-makeSlider(camLockCard, "camlock_range", "CamLockRange", 50, 500)
-makeDivider(camLockCard)
-makeToggle(camLockCard, "camlock_wallcheck", "camlock_wallcheck_d", "CamLockWallCheck")
-makeDivider(camLockCard)
-makeToggle(camLockCard, "camlock_safezone", "camlock_safezone_d", "CamLockSafeZone")
-makeDivider(camLockCard)
-makeKeybind(camLockCard, "camlock_key", "camlock_key")
 
 -- ══ FOV CIRCLE CARD ═══════════════════════════════════════════
 local fovCard = makeCard(pg_aim)
@@ -2595,7 +2573,6 @@ end)
 -- ══════════════════════════════════════════════
 --  CAM LOCK (EXACTAMENTE igual a SyyClient)
 -- ══════════════════════════════════════════════
-local camLockTarget=nil
 
 
 -- ══════════════════════════════════════════════
@@ -2638,48 +2615,6 @@ RunService.RenderStepped:Connect(function()
 end)
 
 
-RunService:BindToRenderStep("x7sCamLock", Enum.RenderPriority.Camera.Value+1, function()
-    pcall(function()
-    if not S.CamLockEnabled then camLockTarget=nil; return end
-
-    local myChar=player.Character
-    local myRoot=myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local bestRoot=nil; local bestDist=math.huge
-
-    for _,p in ipairs(_plrList) do
-        if shouldSkipPlayer(p) then continue end
-        local char=p.Character; if not char then continue end
-        local hum=char:FindFirstChildOfClass("Humanoid")
-        local root=char:FindFirstChild("HumanoidRootPart")
-        if not hum or hum.Health<=0 or not root then continue end
-        if S.CamLockSafeZone and char:FindFirstChild("SafeZoneShield") then continue end
-        local dist3D=myRoot and (root.Position-myRoot.Position).Magnitude or math.huge
-        if dist3D>S.CamLockRange then continue end
-        if S.CamLockWallCheck and myChar then
-            local ok,obs=pcall(function()
-                return camera:GetPartsObscuringTarget({root.Position},{myChar,char})
-            end)
-            if ok and #obs>0 then continue end
-        end
-        -- FOV check
-        if not isInFov(root) then continue end
-        if dist3D<bestDist then bestDist=dist3D; bestRoot=root end
-    end
-
-    camLockTarget=bestRoot
-    if not bestRoot then return end
-
-    local camPos=camera.CFrame.Position
-    local targetPos=Vector3.new(bestRoot.Position.X,bestRoot.Position.Y+1.5,bestRoot.Position.Z)
-    local rawDir=targetPos-camPos
-    if rawDir.Magnitude<0.1 then return end
-    local strength=math.clamp(S.CamLockStrength,1,100)*0.003
-    local newLook=camera.CFrame.LookVector:Lerp(rawDir.Unit,strength)
-    if newLook.Magnitude>0.01 then
-        camera.CFrame=CFrame.lookAt(camPos,camPos+newLook.Unit)
-    end
-    end)
-end)
 
 
 -- ══════════════════════════════════════════════
@@ -2731,14 +2666,6 @@ UserInputService.InputBegan:Connect(function(inp, proc)
                 if obj.selBox then obj.selBox.Visible = false end
             end
         end
-        return
-    end
-
-    -- Toggle Cam Lock
-    if kn == S.camlock_key then
-        S.CamLockEnabled = not S.CamLockEnabled; save()
-        if refreshers["CamLockEnabled"] then refreshers["CamLockEnabled"]() end
-        showNotif("✝  Cam Lock", S.CamLockEnabled and L("n_on") or L("n_off"), S.CamLockEnabled)
         return
     end
 
@@ -2799,4 +2726,4 @@ task.spawn(function()
     end
 end)
 
-print("   "..S.gui_key.." = GUI  ·  "..S.esp_key.." = ESP  ·  "..S.hbx_key.." = HBX  ·  "..S.camlock_key.." = CamLock")
+print("   "..S.gui_key.." = GUI  ·  "..S.esp_key.." = ESP  ·  "..S.hbx_key.." = HBX")
