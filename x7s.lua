@@ -107,6 +107,12 @@ local function mkDefault()
         -- === TARGET ===
         TargetPart = "Random",
 
+        -- === SILENT AIM (portado de SyyClient) ===
+        SilentAimEnabled   = false,  -- redirige el raycast/remote de la bala al objetivo
+        SilentHitChance    = 100,    -- % de balas que se redirigen
+        SilentManipulation = false,  -- wallbang: ignora paredes en el raycast
+        SilentVisibleCheck = true,   -- solo apunta a enemigos visibles
+
         -- === TELEPORT ===
         AutoTeleportMain = false,
         AutoTeleportAlt = false,
@@ -236,6 +242,10 @@ local Locale = {
         whitelist_title="Whitelist Manager", whitelist_add="Add Player", whitelist_remove="Remove",
 
         target_part="Target Part",
+        silent_on="Enable Silent Aim",   silent_on_d="Redirects your bullet's raycast straight to the locked target.",
+        silent_vischeck="Visible Check", silent_vischeck_d="Only target enemies that are actually visible (no wall hits).",
+        silent_manip="Manipulation",     silent_manip_d="Wallbang: ignores walls so the bullet still lands behind cover.",
+        silent_hitchance="Hit Chance %",
         extras_title="Extras",
         ext_inf_stamina="Inf Stamina",       ext_inf_stamina_d="Keeps your stamina always full.",
         ext_health_bar="Health Bar",          ext_health_bar_d="Draws a health bar next to each enemy.",
@@ -291,6 +301,10 @@ local Locale = {
         
         whitelist_title="Gestor de Whitelist", whitelist_add="Añadir Jugador", whitelist_remove="Eliminar",
         target_part="Parte Objetivo",
+        silent_on="Activar Silent Aim",  silent_on_d="Redirige el rayo de tu bala directo al objetivo bloqueado.",
+        silent_vischeck="Visible Check", silent_vischeck_d="Solo apunta a enemigos que estén realmente a la vista (sin disparos a través de paredes).",
+        silent_manip="Manipulation",     silent_manip_d="Wallbang: ignora las paredes para que la bala impacte tras la cobertura.",
+        silent_hitchance="Probabilidad de Acierto %",
         extras_title="Extras",
         ext_inf_stamina="Inf Stamina",       ext_inf_stamina_d="Mantiene tu stamina siempre llena.",
         ext_health_bar="Barra de Salud",      ext_health_bar_d="Dibuja una barra de vida junto a cada enemigo.",
@@ -411,8 +425,11 @@ local applyStreamMode  -- forward declaration
 local applyHitbox      -- forward declaration
 
 
-local GW, GH = 660, 520          -- ancho total, alto total
-local SB_W   = 160                -- ancho sidebar
+local isMobile = UserInputService.TouchEnabled
+local viewport = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
+local GW = isMobile and math.min(430, math.max(340, viewport.X - 24)) or 660
+local GH = isMobile and math.min(560, math.max(420, viewport.Y - 24)) or 520
+local SB_W   = isMobile and 118 or 160
 local HDR_H  = 34                 -- altura header
 local FOOTER_H = 32
 
@@ -551,11 +568,89 @@ local closeStroke = Instance.new("UIStroke", closeBtn)
 closeStroke.Color = Color3.fromRGB(58,58,58); closeStroke.Thickness = 1
 closeBtn.MouseEnter:Connect(function() closeBtn.TextColor3 = accentColor; closeStroke.Color = accentColor end)
 closeBtn.MouseLeave:Connect(function() closeBtn.TextColor3 = Color3.fromRGB(102,102,102); closeStroke.Color = Color3.fromRGB(58,58,58) end)
+
+local mobileToggle = Instance.new("TextButton", gui)
+mobileToggle.Name = "x7sMobileToggle"
+mobileToggle.Size = UDim2.fromOffset(54, 54)
+mobileToggle.Position = UDim2.new(0, 18, 0.5, -27)
+mobileToggle.BackgroundColor3 = Color3.fromRGB(10, 8, 14)
+mobileToggle.BorderSizePixel = 0
+mobileToggle.Text = "💀"  -- calavera
+mobileToggle.TextColor3 = accentColor
+mobileToggle.Font = Enum.Font.GothamBlack
+mobileToggle.TextSize = 30
+mobileToggle.AutoButtonColor = false
+mobileToggle.ZIndex = 220
+mobileToggle.Visible = true   -- botón toggle siempre visible (móvil + PC)
+Instance.new("UICorner", mobileToggle).CornerRadius = UDim.new(1, 0)
+local mobileToggleStroke = Instance.new("UIStroke", mobileToggle)
+mobileToggleStroke.Color = accentColor
+mobileToggleStroke.Transparency = 0.25
+mobileToggleStroke.Thickness = 1.5
+
+local panelOpen = true
+local function setPanelOpen(open)
+    panelOpen = open
+    if open then
+        panel.Visible = true
+        glow.Visible = true
+        panel.Size = UDim2.fromOffset(GW - 20, GH - 20)
+        panel.BackgroundTransparency = 1
+        glow.BackgroundTransparency = 1
+        TweenService:Create(panel, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            BackgroundTransparency = S.panel_bg and 0 or 0.15,
+            Size = UDim2.fromOffset(GW, GH),
+        }):Play()
+        TweenService:Create(glow, TweenInfo.new(0.18), {BackgroundTransparency = 0.88}):Play()
+    else
+        TweenService:Create(panel, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromOffset(GW - 20, GH - 20),
+        }):Play()
+        TweenService:Create(glow, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
+        task.delay(0.16, function()
+            if panelOpen then return end
+            panel.Visible = false
+            glow.Visible = false
+            panel.BackgroundTransparency = S.panel_bg and 0 or 0.15
+            panel.Size = UDim2.fromOffset(GW, GH)
+        end)
+    end
+end
+
 closeBtn.MouseButton1Click:Connect(function()
-    TweenService:Create(panel, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency=1, Size=UDim2.fromOffset(GW-20,GH-20)}):Play()
-    TweenService:Create(glow, TweenInfo.new(0.15), {BackgroundTransparency=1}):Play()
-    task.delay(0.16, function() panel.Visible=false; glow.Visible=false; panel.BackgroundTransparency=0; panel.Size=UDim2.fromOffset(GW,GH) end)
+    setPanelOpen(false)
 end)
+-- ── Toggle arrastrable + tap (móvil y PC) ──────────────────────────
+do
+    local dragging, moved, startPos, startMouse = false, false, nil, nil
+    mobileToggle.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1
+        or inp.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; moved = false
+            startMouse = inp.Position
+            startPos   = mobileToggle.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if not dragging then return end
+        if inp.UserInputType == Enum.UserInputType.MouseMovement
+        or inp.UserInputType == Enum.UserInputType.Touch then
+            local d = inp.Position - startMouse
+            if d.Magnitude > 6 then moved = true end  -- umbral para distinguir tap de drag
+            mobileToggle.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1
+        or inp.UserInputType == Enum.UserInputType.Touch then
+            if dragging and not moved then setPanelOpen(not panelOpen) end
+            dragging = false
+        end
+    end)
+end
 
 -- ── BODY (sidebar + content) ───────────────────
 local body = Instance.new("Frame", panel)
@@ -582,8 +677,8 @@ sbBorder.BackgroundColor3 = Color3.fromRGB(42,42,42); sbBorder.BorderSizePixel =
 -- Logo x7s
 local logoLbl = Instance.new("TextLabel", sidebar)
 logoLbl.Size = UDim2.new(1, 0, 0, 56); logoLbl.Position = UDim2.fromOffset(0, 14)
-logoLbl.BackgroundTransparency = 1; logoLbl.Text = "x7s"
-logoLbl.TextColor3 = Color3.fromRGB(239, 239, 239); logoLbl.Font = Enum.Font.Fantasy
+logoLbl.BackgroundTransparency = 1; logoLbl.Text = "💀"  -- logo: calavera
+logoLbl.TextColor3 = Color3.fromRGB(239, 239, 239); logoLbl.Font = Enum.Font.GothamBlack
 logoLbl.TextSize = 38; logoLbl.TextXAlignment = Enum.TextXAlignment.Center
 -- shadow/glow del logo
 local logoGlow = Instance.new("UIStroke", logoLbl)
@@ -1515,6 +1610,22 @@ makeDivider(fovCard)
 makeToggle(fovCard, "fov_visible", "fov_visible_d", "fov_visible")
 makeDivider(fovCard)
 makeSlider(fovCard, "fov_radius", "fov_radius", 20, 400)
+
+-- ══ SILENT AIM (portado de SyyClient) ════════════════════════════════
+-- Reutiliza el dropdown "Target" (S.TargetPart) y el FOV (S.fov_on / S.fov_radius)
+local silentCard = makeCard(pg_aim)
+makeSecHeader(silentCard, "o", "Silent Aim")
+makeToggle(silentCard, "silent_on", "silent_on_d", "SilentAimEnabled", function(on)
+    showNotif("✝  Silent Aim", on and L("n_on") or L("n_off"), on)
+end)
+makeDivider(silentCard)
+makeToggle(silentCard, "silent_vischeck", "silent_vischeck_d", "SilentVisibleCheck")
+makeDivider(silentCard)
+makeToggle(silentCard, "silent_manip", "silent_manip_d", "SilentManipulation", function(on)
+    showNotif("✝  Manipulation", on and L("n_on") or L("n_off"), on)
+end)
+makeDivider(silentCard)
+makeSlider(silentCard, "silent_hitchance", "SilentHitChance", 1, 100)
 
 -- ══ TARGET (igual a SyyClient - dropdown desplegable) ═════════
 local targetCard = makeCard(pg_aim)
@@ -3093,6 +3204,152 @@ RunService:BindToRenderStep("x7sCamLock", Enum.RenderPriority.Camera.Value+1, fu
     end
     end)
 end)
+
+
+-- ═══════════════════════════════════════════════════════════════════
+--  SILENT AIM  (portado de SyyClient)
+--   • cachedSilentPos  : se recalcula cada 2 frames -> jugador más
+--                        cercano a la mira dentro del FOV.
+--   • hookmetamethod   : intercepta Raycast / FindPartOnRay* y, opcional,
+--                        FireServer/InvokeServer (silent aim universal)
+--                        y redirige la bala a cachedSilentPos.
+--   • Reutiliza: S.TargetPart, S.fov_on, S.fov_radius, shouldSkipPlayer,
+--                _plrList, getFovCenter, camera.
+-- ═══════════════════════════════════════════════════════════════════
+local cachedSilentPos = nil
+
+-- Selección de parte objetivo (misma lógica que SyyClient/CamLock de x7s)
+local function _silentPickPart(char, root)
+    local pn = S.TargetPart
+    if pn == "Random" then
+        local r = math.random(100)
+        pn = r <= 30 and "Head" or (r <= 80 and "UpperTorso" or "LowerTorso")
+    elseif pn == "Pierna" then pn = "LowerTorso"
+    elseif pn == "Pecho"  then pn = "UpperTorso"
+    elseif pn == "Combo"  then
+        local r = math.random(100)
+        pn = r <= 35 and "LowerTorso" or (r <= 85 and "UpperTorso" or "Head")
+    end
+    local hp = char:FindFirstChild(pn) or root
+    return hp.Position
+end
+
+do
+    local sFrame = 0
+    RunService.RenderStepped:Connect(function()
+        if not S.SilentAimEnabled then cachedSilentPos = nil; return end
+        sFrame = (sFrame + 1) % 2
+        if sFrame ~= 0 then return end  -- recalcula cada 2 frames (igual que Syy)
+
+        local center  = getFovCenter()
+        local fovLim  = S.fov_on and S.fov_radius or math.huge
+        local myChar  = player.Character
+        local bestD   = math.huge
+        local bestPos = nil
+
+        for _, p in ipairs(_plrList) do
+            if shouldSkipPlayer(p) then continue end
+            local char = p.Character; if not char then continue end
+            local hum  = char:FindFirstChildOfClass("Humanoid")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not hum or hum.Health <= 0 or not root then continue end
+
+            local sp, onS = camera:WorldToViewportPoint(root.Position)
+            if not onS then continue end
+            local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+            if d > fovLim then continue end
+
+            -- Visible check (saltado si Manipulation está ON = wallbang)
+            if S.SilentVisibleCheck and not S.SilentManipulation and myChar then
+                local ok, obs = pcall(function()
+                    return camera:GetPartsObscuringTarget({root.Position}, {myChar, char})
+                end)
+                if ok and #obs > 0 then continue end
+            end
+
+            if d < bestD then
+                bestD   = d
+                bestPos = _silentPickPart(char, root)
+            end
+        end
+        cachedSilentPos = bestPos
+    end)
+end
+
+-- ── HOOK __namecall ─────────────────────────────────────────────────
+do
+    local _hookmeta    = hookmetamethod
+    local _getnamecall = getnamecallmethod
+    local _checkcaller = checkcaller or function() return false end
+    local _newcc       = newcclosure or function(f) return f end
+
+    if _hookmeta and _getnamecall then
+        local wallbreakParams = RaycastParams.new()
+        wallbreakParams.FilterType = Enum.RaycastFilterType.Include
+        wallbreakParams.FilterDescendantsInstances = {}
+
+        -- Refresca el filtro de wallbang con los personajes enemigos
+        RunService.Heartbeat:Connect(function()
+            if not (S.SilentAimEnabled and S.SilentManipulation) then return end
+            local chars = {}
+            for _, p in ipairs(_plrList) do
+                if p ~= player and p.Character then chars[#chars + 1] = p.Character end
+            end
+            wallbreakParams.FilterDescendantsInstances = chars
+        end)
+
+        local oldNC
+        oldNC = _hookmeta(game, "__namecall", _newcc(function(...)
+            local method = _getnamecall()
+
+            -- Salida rápida si silent aim apagado o sin objetivo
+            if not (S.SilentAimEnabled and cachedSilentPos) then return oldNC(...) end
+            if _checkcaller() then return oldNC(...) end
+            if math.random(100) > S.SilentHitChance then return oldNC(...) end
+
+            local usePos = cachedSilentPos
+
+            -- ── Silent aim universal: FireServer / InvokeServer ──
+            if (method == "FireServer" or method == "InvokeServer") then
+                local args = { ... }
+                local myC  = player.Character
+                local myR  = myC and myC:FindFirstChild("HumanoidRootPart")
+                local replaced = false
+                for i = 2, math.min(#args, 8) do
+                    if typeof(args[i]) == "Vector3" then
+                        local v = args[i]
+                        if v.Magnitude > 2 and myR then
+                            local dd = (v - myR.Position).Magnitude
+                            if dd > 5 and dd < 2000 then args[i] = usePos; replaced = true end
+                        end
+                    end
+                end
+                if replaced then return oldNC(table.unpack(args)) end
+                return oldNC(...)
+            end
+
+            -- ── Raycast silent aim ──
+            local args = { ... }
+            if args[1] ~= Workspace then return oldNC(...) end
+            if method == "Raycast" then
+                if typeof(args[2]) ~= "Vector3" or typeof(args[3]) ~= "Vector3" then return oldNC(...) end
+                args[3] = (usePos - args[2]).Unit * 1000
+                if S.SilentManipulation then args[4] = wallbreakParams end
+                return oldNC(table.unpack(args))
+            elseif method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" then
+                if typeof(args[2]) ~= "Ray" then return oldNC(...) end
+                local o = args[2].Origin
+                args[2] = Ray.new(o, (usePos - o).Unit * 1000)
+                if S.SilentManipulation and method == "FindPartOnRayWithIgnoreList" then args[3] = {} end
+                return oldNC(table.unpack(args))
+            end
+            return oldNC(...)
+        end))
+    else
+        warn("[x7s] Silent Aim: tu executor no soporta hookmetamethod/getnamecallmethod.")
+    end
+end
+
 
 
 -- ══════════════════════════════════════════════
