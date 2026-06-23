@@ -2979,88 +2979,57 @@ task.defer(function()
 end)
 
 
--- == BOTON FLOTANTE (abrir/cerrar GUI en movil) - drag fluido ====
+-- == BOTON FLOTANTE (abrir/cerrar GUI en movil) - drag estable ===
 if isMobile then
+    local FB_SZ = 54
     local fb = Instance.new("TextButton", gui)
-    fb.Name = "x7sToggle"; fb.Size = UDim2.fromOffset(54, 54)
-    fb.AnchorPoint = Vector2.new(0, 0)
+    fb.Name = "x7sToggle"; fb.Size = UDim2.fromOffset(FB_SZ, FB_SZ)
     fb.Position = UDim2.fromOffset(16, math.floor(camera.ViewportSize.Y * 0.4))
     fb.BackgroundColor3 = Color3.fromRGB(12, 9, 18); fb.BorderSizePixel = 0
     fb.Text = "x7s"; fb.TextColor3 = accentColor
     fb.Font = Enum.Font.GothamBlack; fb.TextSize = 15; fb.ZIndex = 250
-    fb.AutoButtonColor = false
+    fb.AutoButtonColor = false; fb.Active = true
     Instance.new("UICorner", fb).CornerRadius = UDim.new(1, 0)
     local fbs = Instance.new("UIStroke", fb); fbs.Color = accentColor; fbs.Thickness = 1.5; fbs.Transparency = 0.3
 
-    local DRAG_THRESHOLD = 6          -- px antes de considerarlo arrastre (no tap)
-    local FOLLOW = 0.55               -- 0..1 suavizado (1 = sigue exacto, mas bajo = mas suave)
-    local activeInput = nil           -- el toque concreto que controla el boton
-    local moved = false
-    local touchOffset = Vector2.zero  -- distancia dedo->esquina del boton (evita el salto inicial)
-    local targetPos = fb.AbsolutePosition  -- destino al que el boton se acerca cada frame
-
-    local function clampToScreen(x, y)
-        local vp = camera.ViewportSize
-        local sz = fb.AbsoluteSize
-        return math.clamp(x, 0, vp.X - sz.X), math.clamp(y, 0, vp.Y - sz.Y)
-    end
+    local DRAG_THRESHOLD = 8           -- px antes de considerarlo arrastre (no tap)
+    local dragInput, dragStart, startPos, moved = nil, nil, nil, false
 
     fb.InputBegan:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.Touch
         or inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            activeInput = inp
+            dragInput = inp
+            dragStart = inp.Position
+            startPos  = fb.Position       -- UDim2 en offset puro
             moved = false
-            touchOffset = Vector2.new(inp.Position.X, inp.Position.Y) - fb.AbsolutePosition
-            targetPos = fb.AbsolutePosition
             fbs.Transparency = 0          -- feedback al presionar
+            inp.Changed:Connect(function()
+                if dragInput == inp and inp.UserInputState == Enum.UserInputState.End then
+                    dragInput = nil
+                    fbs.Transparency = 0.3
+                    if not moved then
+                        -- tap = toggle del panel
+                        local show = not panel.Visible
+                        panel.Visible = show; glow.Visible = show
+                        if show then panel.BackgroundTransparency = 0 end
+                    end
+                end
+            end)
         end
     end)
 
-    -- Sigue el dedo: solo fija el DESTINO; el movimiento real lo hace el render loop (fluido)
+    -- Sigue el dedo 1:1 (fluido) y se mantiene dentro de la pantalla
     UserInputService.InputChanged:Connect(function(inp)
-        if activeInput and inp == activeInput
+        if dragInput == inp
         and (inp.UserInputType == Enum.UserInputType.Touch
           or inp.UserInputType == Enum.UserInputType.MouseMovement) then
-            local fingerPos = Vector2.new(inp.Position.X, inp.Position.Y)
-            local desired = fingerPos - touchOffset
-            local cx, cy = clampToScreen(desired.X, desired.Y)
-            targetPos = Vector2.new(cx, cy)
-            if not moved and (fingerPos - (fb.AbsolutePosition + touchOffset)).Magnitude > DRAG_THRESHOLD then
-                moved = true
-            end
+            local delta = inp.Position - dragStart
+            if delta.Magnitude > DRAG_THRESHOLD then moved = true end
+            local vp = camera.ViewportSize
+            local nx = math.clamp(startPos.X.Offset + delta.X, 0, vp.X - FB_SZ)
+            local ny = math.clamp(startPos.Y.Offset + delta.Y, 0, vp.Y - FB_SZ)
+            fb.Position = UDim2.fromOffset(nx, ny)
         end
-    end)
-
-    UserInputService.InputEnded:Connect(function(inp)
-        if activeInput and inp == activeInput then
-            fbs.Transparency = 0.3
-            if not moved then
-                -- tap = toggle del panel
-                if panel.Visible then
-                    panel.Visible = false; glow.Visible = false
-                else
-                    panel.Visible = true; glow.Visible = true
-                    panel.BackgroundTransparency = 0
-                end
-            else
-                -- snap suave al borde mas cercano (izq/der)
-                local vp = camera.ViewportSize
-                local sz = fb.AbsoluteSize
-                local cx = fb.AbsolutePosition.X
-                local snapX = (cx + sz.X * 0.5 < vp.X * 0.5) and 12 or (vp.X - sz.X - 12)
-                targetPos = Vector2.new(snapX, math.clamp(targetPos.Y, 12, vp.Y - sz.Y - 12))
-            end
-            activeInput = nil
-        end
-    end)
-
-    -- Loop de movimiento: lerp hacia el destino = arrastre fluido sin saltos
-    RunService.RenderStepped:Connect(function()
-        local cur = fb.AbsolutePosition
-        if (cur - targetPos).Magnitude < 0.5 then return end
-        local nx = cur.X + (targetPos.X - cur.X) * FOLLOW
-        local ny = cur.Y + (targetPos.Y - cur.Y) * FOLLOW
-        fb.Position = UDim2.fromOffset(nx, ny)
     end)
 end
 
