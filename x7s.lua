@@ -1046,22 +1046,32 @@ local function makeSlider(parent, titleKey, stateKey, mn, mx, cb)
     end
     setVal(S[stateKey])
 
+    -- Hit area alto para PC + touch (la barra real es de 4px)
+    local hit = Instance.new("TextButton", row)
+    hit.BackgroundTransparency = 1; hit.Text = ""
+    hit.Size = UDim2.new(1,-28,0,30); hit.Position = UDim2.fromOffset(14,21)
+    hit.ZIndex = 6; hit.AutoButtonColor = false
+
     local sliding = false
-    trk.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            sliding = true
-            local abs = trk.AbsolutePosition; local sz = trk.AbsoluteSize
-            if sz.X > 0 then setVal(mn + math.clamp((inp.Position.X-abs.X)/sz.X,0,1)*(mx-mn)) end
+    local function setFromInput(inp)
+        local abs = trk.AbsolutePosition; local sz = trk.AbsoluteSize
+        if sz.X > 0 then setVal(mn + math.clamp((inp.Position.X-abs.X)/sz.X,0,1)*(mx-mn)) end
+    end
+    hit.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1
+        or inp.UserInputType == Enum.UserInputType.Touch then
+            sliding = true; setFromInput(inp)
         end
     end)
     UserInputService.InputChanged:Connect(function(inp)
-        if sliding and inp.UserInputType == Enum.UserInputType.MouseMovement then
-            local abs = trk.AbsolutePosition; local sz = trk.AbsoluteSize
-            if sz.X > 0 then setVal(mn + math.clamp((inp.Position.X-abs.X)/sz.X,0,1)*(mx-mn)) end
+        if sliding and (inp.UserInputType == Enum.UserInputType.MouseMovement
+                     or inp.UserInputType == Enum.UserInputType.Touch) then
+            setFromInput(inp)
         end
     end)
     UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then sliding = false end
+        if inp.UserInputType == Enum.UserInputType.MouseButton1
+        or inp.UserInputType == Enum.UserInputType.Touch then sliding = false end
     end)
     return row
 end
@@ -1291,22 +1301,32 @@ local function makeColorPicker(parent, label, getR, getG, getB, setRGB)
         end
         setV(rgbVals[ci])
 
+        -- Hit area alto para PC + touch (la barra real es de 4px)
+        local hit2 = Instance.new("TextButton", sRow)
+        hit2.BackgroundTransparency = 1; hit2.Text = ""
+        hit2.Size = UDim2.new(1,-52,1,0); hit2.Position = UDim2.fromOffset(22,0)
+        hit2.ZIndex = 6; hit2.AutoButtonColor = false
+
         local sl2 = false
-        trk2.InputBegan:Connect(function(inp)
-            if inp.UserInputType==Enum.UserInputType.MouseButton1 then
-                sl2=true
-                local a=trk2.AbsolutePosition; local sz=trk2.AbsoluteSize
-                if sz.X>0 then setV((inp.Position.X-a.X)/sz.X*255) end
+        local function setFromInput(inp)
+            local a=trk2.AbsolutePosition; local sz=trk2.AbsoluteSize
+            if sz.X>0 then setV((inp.Position.X-a.X)/sz.X*255) end
+        end
+        hit2.InputBegan:Connect(function(inp)
+            if inp.UserInputType==Enum.UserInputType.MouseButton1
+            or inp.UserInputType==Enum.UserInputType.Touch then
+                sl2=true; setFromInput(inp)
             end
         end)
         UserInputService.InputChanged:Connect(function(inp)
-            if sl2 and inp.UserInputType==Enum.UserInputType.MouseMovement then
-                local a=trk2.AbsolutePosition; local sz=trk2.AbsoluteSize
-                if sz.X>0 then setV((inp.Position.X-a.X)/sz.X*255) end
+            if sl2 and (inp.UserInputType==Enum.UserInputType.MouseMovement
+                     or inp.UserInputType==Enum.UserInputType.Touch) then
+                setFromInput(inp)
             end
         end)
         UserInputService.InputEnded:Connect(function(inp)
-            if inp.UserInputType==Enum.UserInputType.MouseButton1 then sl2=false end
+            if inp.UserInputType==Enum.UserInputType.MouseButton1
+            or inp.UserInputType==Enum.UserInputType.Touch then sl2=false end
         end)
     end
 
