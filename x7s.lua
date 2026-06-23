@@ -3018,18 +3018,20 @@ if isMobile then
         end
     end)
 
-    -- Sigue el dedo 1:1 (fluido) y se mantiene dentro de la pantalla
+    -- Sigue el dedo SOLO tras cruzar el umbral (un tap NO mueve la burbuja)
     UserInputService.InputChanged:Connect(function(inp)
-        if dragInput == inp
-        and (inp.UserInputType == Enum.UserInputType.Touch
-          or inp.UserInputType == Enum.UserInputType.MouseMovement) then
-            local delta = inp.Position - dragStart
-            if delta.Magnitude > DRAG_THRESHOLD then moved = true end
-            local vp = camera.ViewportSize
-            local nx = math.clamp(startPos.X.Offset + delta.X, 0, vp.X - FB_SZ)
-            local ny = math.clamp(startPos.Y.Offset + delta.Y, 0, vp.Y - FB_SZ)
-            fb.Position = UDim2.fromOffset(nx, ny)
+        if dragInput ~= inp then return end
+        if inp.UserInputType ~= Enum.UserInputType.Touch
+       and inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        local delta = inp.Position - dragStart
+        if not moved then
+            if delta.Magnitude < DRAG_THRESHOLD then return end  -- ignora jitter del tap
+            moved = true
         end
+        local vp = camera.ViewportSize
+        fb.Position = UDim2.fromOffset(
+            math.clamp(startPos.X.Offset + delta.X, 0, vp.X - FB_SZ),
+            math.clamp(startPos.Y.Offset + delta.Y, 0, vp.Y - FB_SZ))
     end)
 end
 
