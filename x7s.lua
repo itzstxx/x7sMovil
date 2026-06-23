@@ -66,10 +66,6 @@ local UserInputService = game:GetService("UserInputService")
 local RunService       = game:GetService("RunService")
 local Workspace        = game:GetService("Workspace")
 local HttpService      = game:GetService("HttpService")
-local _vimOk, VirtualInputManager = pcall(function()
-    return game:GetService("VirtualInputManager")
-end)
-if not _vimOk then VirtualInputManager = nil end
 
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -106,32 +102,28 @@ local function mkDefault()
         CamLockSafeZone = true,
         -- === TARGET ===
         TargetPart = "Random",
+        -- === SILENT AIM (migrado de SyyClient) ===
+        SilentAimEnabled = false,
+        HitChance        = 100,
+        Manipulation     = false,
+        VisibleCheck     = true,
 
-        -- === TELEPORT ===
-        AutoTeleportMain = false,
-        AutoTeleportAlt = false,
-        TeleportDuelType = "1v1",
-        TeleportPlatformRow = "Right Platforms",
-        TeleportLowerKD = false,
-        TeleportKDTargetKills = 2,
-        TeleportBreakStreak = false,
-        TeleportBreakStreakTarget = 1,
+
+
+
+
+
+
+
+
+
+
 
         -- === EXTRAS ===
         InfStamina   = false,
         EspHealthBar = false,
         EspDistance  = false,
         ItemInHand   = false,
-
-        -- === PLAYER (Soru + Z-Attack) ===
-        PlayerSoruZEnabled  = false,   -- Auto-dispara Z al hacer Soru a hitbox
-        PlayerSoruZKey      = "Z",     -- Tecla a disparar
-        PlayerSoruZDelay    = 0.08,    -- Delay tras el TP antes de disparar (segundos)
-        PlayerSoruZAutoDir  = true,    -- Auto-dirigir al enemigo al disparar
-        PlayerSoruZCamSnap  = true,    -- Snap de cámara instantáneo al enemigo antes de Z
-        PlayerSoruZRange    = 120,     -- Rango máximo para detectar objetivo (studs)
-        PlayerSoruZRepeat   = 1,       -- Cuántas veces disparar Z por Soru
-        PlayerSoruZInterval = 0.06,    -- Intervalo entre disparos repetidos
     }
 end
 local S = mkDefault()
@@ -194,11 +186,6 @@ local function shouldSkipPlayer(p)
     if not p or not p.Parent then return true end  -- Validación
     if p == player then return true end            -- Tu personaje
     if isWhitelisted(p) then return true end       -- En whitelist
-    local char = p.Character
-    if not char then return true end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not root or not hum or hum.Health <= 1 then return true end
     return false
 end
 
@@ -232,7 +219,7 @@ local Locale = {
         camlock_range="Cam Lock Range",     camlock_range_d="Maximum distance to target (50-500).",
         camlock_wallcheck="Wall Check",     camlock_wallcheck_d="Only lock on visible enemies.",
         camlock_safezone="Safe Zone",       camlock_safezone_d="Don't lock on players inside a safe zone.",
-        
+
         whitelist_title="Whitelist Manager", whitelist_add="Add Player", whitelist_remove="Remove",
 
         target_part="Target Part",
@@ -242,15 +229,7 @@ local Locale = {
         ext_distance="Distance",              ext_distance_d="Shows the distance to each enemy in meters.",
         ext_item_hand="Item in Hand",         ext_item_hand_d="Shows what item the enemy is holding.",
 
-        summer_on="Summer 2026",    summer_on_d="Tracks active Summer 2026 drops without forcing collection.",
-        teleport_main="Auto Teleport Main", teleport_main_d="Stores the main teleport role for private-match routing.",
-        teleport_alt="Auto Teleport Alt", teleport_alt_d="Stores the alternate teleport role for private-match routing.",
-        teleport_duel_type="Duel Type",
-        teleport_platform_row="Platform Row",
-        teleport_lower_kd="Lower KD", teleport_lower_kd_d="Uses Main or Alt based on the active teleport role.",
-        teleport_kd_target="KD Target Kills",
-        teleport_break_streak="Break Streak", teleport_break_streak_d="Uses Main or Alt based on the active teleport role.",
-        teleport_streak_target="Break Streak Target",
+        summer_on="Summer 2026",    summer_on_d="Collects Summer 2026 drops automatically. Only in matches.",
 
         st_bg="Toggle Panel Background",
         st_notif="Enable Notifications",
@@ -259,6 +238,12 @@ local Locale = {
         st_stream="Stream Mode",       st_stream_d="Hides GUI and disables all ESP visuals. Hotkey: RightAlt.",
         st_r1="Reset Toggle UI Keybind",  st_r1_d="Reset this keybind to its default value.",
         st_r2="Reset All Keybinds",       st_r2_d="Reset all keybinds to their default values.",
+
+
+        silent_on="Silent Aim",      silent_on_d="Redirects your shots to the closest enemy automatically.",
+        silent_vis="Visible Check",   silent_vis_d="Only target enemies that are actually visible (no wallbang).",
+        silent_man="Manipulation",    silent_man_d="Forces raycasts to ignore walls so hits register through them.",
+        silent_hc="Hit Chance %",     silent_hc_d="Percentage of shots that get redirected to the target.",
 
         n_on="Enabled", n_off="Disabled", n_reset="Keybind reset",
     },
@@ -288,7 +273,7 @@ local Locale = {
         camlock_range="Rango Cam Lock",     camlock_range_d="Distancia máxima al objetivo (50-500).",
         camlock_wallcheck="Wall Check",     camlock_wallcheck_d="Solo bloquea enemigos visibles.",
         camlock_safezone="Safe Zone",       camlock_safezone_d="No bloquea a jugadores dentro de una zona segura.",
-        
+
         whitelist_title="Gestor de Whitelist", whitelist_add="Añadir Jugador", whitelist_remove="Eliminar",
         target_part="Parte Objetivo",
         extras_title="Extras",
@@ -296,15 +281,7 @@ local Locale = {
         ext_health_bar="Barra de Salud",      ext_health_bar_d="Dibuja una barra de vida junto a cada enemigo.",
         ext_distance="Distancia",             ext_distance_d="Muestra la distancia a cada enemigo en metros.",
         ext_item_hand="Ítem en la Mano",      ext_item_hand_d="Muestra qué ítem sostiene el enemigo.",
-        summer_on="Summer 2026",     summer_on_d="Detecta drops activos del Summer 2026 sin forzar recolección.",
-        teleport_main="Auto Teleport Main", teleport_main_d="Guarda el rol principal de teleport para rutas privadas.",
-        teleport_alt="Auto Teleport Alt", teleport_alt_d="Guarda el rol alterno de teleport para rutas privadas.",
-        teleport_duel_type="Tipo de Duelo",
-        teleport_platform_row="Fila de Plataforma",
-        teleport_lower_kd="Lower KD", teleport_lower_kd_d="Usa Main o Alt según el rol de Auto Teleport activo.",
-        teleport_kd_target="KD Target Kills",
-        teleport_break_streak="Break Streak", teleport_break_streak_d="Usa Main o Alt según el rol de Auto Teleport activo.",
-        teleport_streak_target="Break Streak Target",
+        summer_on="Summer 2026",     summer_on_d="Recolecta los drops del Summer 2026 automáticamente. Solo en partidas.",
         st_bg="Fondo del Panel",
         st_notif="Activar Notificaciones",
         st_lang="Idioma",
@@ -312,6 +289,12 @@ local Locale = {
         st_stream="Stream Mode",       st_stream_d="Oculta la GUI y desactiva el ESP visual. Tecla: RightAlt.",
         st_r1="Restablecer Tecla UI",     st_r1_d="Restablece esta tecla a su valor predeterminado.",
         st_r2="Restablecer Todas",        st_r2_d="Restablece todas las teclas a sus valores predeterminados.",
+
+        silent_on="Silent Aim",      silent_on_d="Redirige tus disparos al enemigo más cercano automáticamente.",
+        silent_vis="Visible Check",   silent_vis_d="Solo apunta a enemigos que estén realmente a la vista (sin paredes).",
+        silent_man="Manipulation",    silent_man_d="Fuerza los raycasts a ignorar paredes para que el hit registre.",
+        silent_hc="Hit Chance %",     silent_hc_d="Porcentaje de disparos que se redirigen al objetivo.",
+
         n_on="Activado", n_off="Desactivado", n_reset="Tecla restablecida",
     }
 }
@@ -411,11 +394,8 @@ local applyStreamMode  -- forward declaration
 local applyHitbox      -- forward declaration
 
 
-local isMobile = UserInputService.TouchEnabled
-local viewport = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
-local GW = isMobile and math.min(430, math.max(340, viewport.X - 24)) or 660
-local GH = isMobile and math.min(560, math.max(420, viewport.Y - 24)) or 520
-local SB_W   = isMobile and 118 or 160
+local GW, GH = 660, 520          -- ancho total, alto total
+local SB_W   = 160                -- ancho sidebar
 local HDR_H  = 34                 -- altura header
 local FOOTER_H = 32
 
@@ -438,6 +418,26 @@ panel.BackgroundColor3 = Color3.fromRGB(8, 6, 8)
 panel.BorderSizePixel = 0; panel.ClipsDescendants = true; panel.ZIndex = 2
 local panelStroke = Instance.new("UIStroke", panel)
 panelStroke.Color = Color3.fromRGB(58, 58, 58); panelStroke.Transparency = 0; panelStroke.Thickness = 1
+
+-- == MOBILE ADAPTATION ===========================================
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local panelScale = Instance.new("UIScale", panel)
+local glowScale  = Instance.new("UIScale", glow)
+if isMobile then
+    -- Centrar por ancla para que el UIScale escale desde el centro
+    panel.AnchorPoint = Vector2.new(0.5, 0.5)
+    panel.Position    = UDim2.fromScale(0.5, 0.5)
+    glow.AnchorPoint  = Vector2.new(0.5, 0.5)
+    glow.Position     = UDim2.fromScale(0.5, 0.5)
+    local function fitScale()
+        local vp = camera.ViewportSize
+        local s  = math.clamp(math.min(vp.X * 0.95 / GW, vp.Y * 0.92 / GH), 0.4, 1)
+        panelScale.Scale = s
+        glowScale.Scale  = s
+    end
+    fitScale()
+    camera:GetPropertyChangedSignal("ViewportSize"):Connect(fitScale)
+end
 
 local scanlines = Instance.new("Frame", panel)
 scanlines.Name = "Scanlines"
@@ -554,61 +554,10 @@ local closeStroke = Instance.new("UIStroke", closeBtn)
 closeStroke.Color = Color3.fromRGB(58,58,58); closeStroke.Thickness = 1
 closeBtn.MouseEnter:Connect(function() closeBtn.TextColor3 = accentColor; closeStroke.Color = accentColor end)
 closeBtn.MouseLeave:Connect(function() closeBtn.TextColor3 = Color3.fromRGB(102,102,102); closeStroke.Color = Color3.fromRGB(58,58,58) end)
-
-local mobileToggle = Instance.new("TextButton", gui)
-mobileToggle.Name = "x7sMobileToggle"
-mobileToggle.Size = UDim2.fromOffset(54, 54)
-mobileToggle.Position = UDim2.new(0, 18, 0.5, -27)
-mobileToggle.BackgroundColor3 = Color3.fromRGB(10, 8, 14)
-mobileToggle.BorderSizePixel = 0
-mobileToggle.Text = "☠"
-mobileToggle.TextColor3 = accentColor
-mobileToggle.Font = Enum.Font.GothamBlack
-mobileToggle.TextSize = 28
-mobileToggle.AutoButtonColor = false
-mobileToggle.ZIndex = 220
-mobileToggle.Visible = isMobile
-Instance.new("UICorner", mobileToggle).CornerRadius = UDim.new(1, 0)
-local mobileToggleStroke = Instance.new("UIStroke", mobileToggle)
-mobileToggleStroke.Color = accentColor
-mobileToggleStroke.Transparency = 0.25
-mobileToggleStroke.Thickness = 1.5
-
-local panelOpen = true
-local function setPanelOpen(open)
-    panelOpen = open
-    if open then
-        panel.Visible = true
-        glow.Visible = true
-        panel.Size = UDim2.fromOffset(GW - 20, GH - 20)
-        panel.BackgroundTransparency = 1
-        glow.BackgroundTransparency = 1
-        TweenService:Create(panel, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            BackgroundTransparency = S.panel_bg and 0 or 0.15,
-            Size = UDim2.fromOffset(GW, GH),
-        }):Play()
-        TweenService:Create(glow, TweenInfo.new(0.18), {BackgroundTransparency = 0.88}):Play()
-    else
-        TweenService:Create(panel, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromOffset(GW - 20, GH - 20),
-        }):Play()
-        TweenService:Create(glow, TweenInfo.new(0.15), {BackgroundTransparency = 1}):Play()
-        task.delay(0.16, function()
-            if panelOpen then return end
-            panel.Visible = false
-            glow.Visible = false
-            panel.BackgroundTransparency = S.panel_bg and 0 or 0.15
-            panel.Size = UDim2.fromOffset(GW, GH)
-        end)
-    end
-end
-
 closeBtn.MouseButton1Click:Connect(function()
-    setPanelOpen(false)
-end)
-mobileToggle.MouseButton1Click:Connect(function()
-    setPanelOpen(not panelOpen)
+    TweenService:Create(panel, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {BackgroundTransparency=1, Size=UDim2.fromOffset(GW-20,GH-20)}):Play()
+    TweenService:Create(glow, TweenInfo.new(0.15), {BackgroundTransparency=1}):Play()
+    task.delay(0.16, function() panel.Visible=false; glow.Visible=false; panel.BackgroundTransparency=0; panel.Size=UDim2.fromOffset(GW,GH) end)
 end)
 
 -- ── BODY (sidebar + content) ───────────────────
@@ -708,14 +657,17 @@ local function makeContentPage()
 end
 
 -- SVG-like icon labels (usando Unicode para los iconos de nav)
+
+
 local NAV_DATA = {
     { icon = "*", label = "Inicio" },
     { icon = "o", label = "Aim" },
     { icon = "+", label = "Extras" },
-    { icon = ">", label = "Teleport" },
-    { icon = "P", label = "Player" },
     { icon = "#", label = "Ajustes" },
 }
+
+
+
 
 local function setPage(idx)
     if activePage == idx then return end
@@ -1367,13 +1319,12 @@ local function makeColorPicker(parent, label, getR, getG, getB, setRGB)
     return row, popup
 end
 
--- Páginas: 1 = Inicio, 2 = Aim, 3 = Extras, 4 = Teleport, 5 = Player, 6 = Ajustes
+-- Páginas: 1 = Inicio, 2 = Aim, 3 = Extras, 4 = Ajustes
 local pg_inicio   = pages[1]
 local pg_aim      = pages[2]
 local pg_extras   = pages[3]
-local pg_teleport = pages[4]
-local pg_player   = pages[5]
-local pg_ajustes  = pages[6]
+local pg_ajustes  = pages[4]
+
 
 -- ══ INICIO PAGE ══════════════════════════════════
 
@@ -1543,6 +1494,19 @@ makeToggle(summerCard, "summer_on", "summer_on_d", "summer_on")
 
 
 -- ══ AIM PAGE ═══════════════════════════════════════════════════
+-- == SILENT AIM CARD ==============================================
+local silentCard = makeCard(pg_aim)
+makeSecHeader(silentCard, "o", "Silent Aim")
+makeToggle(silentCard, "silent_on", "silent_on_d", "SilentAimEnabled", function(on)
+    showNotif("✝  Silent Aim", on and L("n_on") or L("n_off"), on)
+end)
+makeDivider(silentCard)
+makeToggle(silentCard, "silent_vis", "silent_vis_d", "VisibleCheck")
+makeDivider(silentCard)
+makeToggle(silentCard, "silent_man", "silent_man_d", "Manipulation")
+makeDivider(silentCard)
+makeSlider(silentCard, "silent_hc", "HitChance", 1, 100)
+
 local camLockCard = makeCard(pg_aim)
 makeSecHeader(camLockCard, "x", "Cam Lock")
 makeToggle(camLockCard, "camlock_on", "camlock_on_d", "CamLockEnabled", function(on)
@@ -1575,27 +1539,6 @@ local targetCard = makeCard(pg_aim)
 makeSecHeader(targetCard, "+", "Target")
 makeDivider(targetCard)
 makeDropdown(targetCard, "target_part", "TargetPart", {"Head","UpperTorso","LowerTorso","Pierna","Pecho","Combo","Random"})
-
--- ══ TELEPORT PAGE ═════════════════════════════════════════════
-local teleportCard = makeCard(pg_teleport)
-makeSecHeader(teleportCard, ">", "Teleport")
-makeToggle(teleportCard, "teleport_main", "teleport_main_d", "AutoTeleportMain")
-makeDivider(teleportCard)
-makeToggle(teleportCard, "teleport_alt", "teleport_alt_d", "AutoTeleportAlt")
-makeDivider(teleportCard)
-makeDropdown(teleportCard, "teleport_duel_type", "TeleportDuelType", {"1v1","2v2","3v3","4v4","5v5"})
-makeDivider(teleportCard)
-makeDropdown(teleportCard, "teleport_platform_row", "TeleportPlatformRow", {"Right Platforms","Left Platforms"})
-
-local teleportLogicCard = makeCard(pg_teleport)
-makeSecHeader(teleportLogicCard, "+", "Logic")
-makeToggle(teleportLogicCard, "teleport_lower_kd", "teleport_lower_kd_d", "TeleportLowerKD")
-makeDivider(teleportLogicCard)
-makeSlider(teleportLogicCard, "teleport_kd_target", "TeleportKDTargetKills", 1, 20)
-makeDivider(teleportLogicCard)
-makeToggle(teleportLogicCard, "teleport_break_streak", "teleport_break_streak_d", "TeleportBreakStreak")
-makeDivider(teleportLogicCard)
-makeSlider(teleportLogicCard, "teleport_streak_target", "TeleportBreakStreakTarget", 1, 20)
 
 -- ══ WHITELIST (igual a SyyClient - dropdown con lista del servidor) ══
 local whitelistCard = makeCard(pg_aim)
@@ -1941,359 +1884,7 @@ makeDivider(extrasCard)
 -- Item in Hand Drawing
 makeToggle(extrasCard, "ext_item_hand", "ext_item_hand_d", "ItemInHand")
 
--- ══════════════════════════════════════════════════════════════════════════════
---  PLAYER PAGE  —  Soru → Hitbox → Auto Z-Attack  (Blox Fruits)
---  Lógica:
---    1. Se detecta cuándo el LocalPlayer hace un TP (Soru) hacia la hitbox de un
---       enemigo monitorizando el delta de posición del HumanoidRootPart.
---    2. Inmediatamente después del TP se snapea la cámara al enemigo más cercano
---       dentro del rango configurado (PlayerSoruZRange).
---    3. Se dispara la tecla Z (o la tecla configurada) N veces con el intervalo
---       configurado usando keypress() / mouse1press() del executor.
---    4. Si PlayerSoruZAutoDir está ON, el CFrame del HumanoidRootPart se orienta
---       hacia el objetivo para que el ataque conecte sin importar el ángulo.
---
---  NOTA sobre Silent Aim en PC:
---    El silent aim clásico (manipular el ángulo del rayo de la bala en el cliente)
---    no funciona en Blox Fruits PC porque el servidor valida la dirección del ataque
---    contra la posición del HumanoidRootPart. Lo que SÍ funciona es:
---      a) Expandir la hitbox (ya tienes HBX).
---      b) Snapear la cámara + orientar el personaje al objetivo antes del ataque.
---    Este módulo implementa (b) de forma automática en el momento del Soru.
--- ══════════════════════════════════════════════════════════════════════════════
-
--- ── Referencia a la página ──────────────────────────────────────────────────
-local plrCard = makeCard(pg_player)
-makeSecHeader(plrCard, "P", "Player")
-makeDivider(plrCard)
-
--- ── Locale entries (añadidas inline porque el Locale está fijo arriba) ──────
--- Usamos claves directas en inglés/español según S.lang
-local function LP(en, es)
-    return (S.lang == "Español") and es or en
-end
-
--- ── Sección: Soru → Z ───────────────────────────────────────────────────────
-secLabel(plrCard, "· · · SORU → Z ATTACK · · ·")
-
--- Toggle principal
-makeToggle(plrCard,
-    "Soru Z Attack",
-    "Auto-fires Z key when you Soru to an enemy hitbox.",
-    "PlayerSoruZEnabled"
-)
-makeDivider(plrCard)
-
--- Tecla a disparar (keybind custom)
-do
-    local row, _ = makeRow(plrCard, "Z Key to Fire", "Key fired after Soru TP.")
-    row.Size = UDim2.new(1, 0, 0, 56)
-
-    local kbBtn = Instance.new("TextButton", row)
-    kbBtn.Size = UDim2.fromOffset(44, 28)
-    kbBtn.Position = UDim2.new(1, -(44+14), 0.5, -14)
-    kbBtn.BackgroundColor3 = Color3.fromRGB(22, 18, 32)
-    kbBtn.BorderSizePixel = 0; kbBtn.AutoButtonColor = false
-    kbBtn.Font = Enum.Font.GothamBold; kbBtn.TextSize = 12
-    kbBtn.TextColor3 = accentColor
-    local kbs2 = Instance.new("UIStroke", kbBtn); kbs2.Color = accentColor; kbs2.Thickness = 1
-    Instance.new("UICorner", kbBtn).CornerRadius = UDim.new(0, 6)
-
-    local waiting = false
-    local function refreshZKey()
-        kbBtn.Text = S.PlayerSoruZKey
-    end
-    refreshZKey()
-    refreshers["PlayerSoruZKey"] = refreshZKey
-
-    kbBtn.MouseButton1Click:Connect(function()
-        if waiting then return end
-        waiting = true
-        kbBtn.Text = "..."
-        local conn
-        conn = UserInputService.InputBegan:Connect(function(inp, proc)
-            if proc then return end
-            if inp.UserInputType == Enum.UserInputType.Keyboard then
-                S.PlayerSoruZKey = inp.KeyCode.Name
-                save(); refreshZKey()
-                conn:Disconnect(); waiting = false
-                showNotif("✝  Z Key", "Set to: "..S.PlayerSoruZKey, true)
-            end
-        end)
-    end)
-end
-makeDivider(plrCard)
-
--- Repeticiones de Z
-makeSlider(plrCard, "Z Repeat Count", "PlayerSoruZRepeat", 1, 5)
-makeDivider(plrCard)
-
--- Delay antes del primer disparo
-makeSlider(plrCard, "Pre-fire Delay (x10ms)", "PlayerSoruZDelay", 0, 30, function(v)
-    S.PlayerSoruZDelay = v * 0.01   -- convertir a segundos
-    save()
-end)
-makeDivider(plrCard)
-
--- Intervalo entre disparos repetidos
-makeSlider(plrCard, "Repeat Interval (x10ms)", "PlayerSoruZInterval", 1, 20, function(v)
-    S.PlayerSoruZInterval = v * 0.01
-    save()
-end)
-makeDivider(plrCard)
-
--- Rango de detección
-makeSlider(plrCard, "Detection Range (studs)", "PlayerSoruZRange", 20, 300)
-makeDivider(plrCard)
-
--- Toggle Auto-dirección
-makeToggle(plrCard,
-    "Auto Direction",
-    "Orients your character toward the enemy before firing Z.",
-    "PlayerSoruZAutoDir"
-)
-makeDivider(plrCard)
-
--- Toggle Cam Snap
-makeToggle(plrCard,
-    "Camera Snap",
-    "Instantly snaps camera to enemy before firing Z.",
-    "PlayerSoruZCamSnap"
-)
-
--- ── LÓGICA INTERNA del módulo Auto-Z cuando NO estás en hitbox del enemigo ───
-do
-    -- ── Estado interno ───────────────────────────────────────────────────────
-    local _soruZ_firing      = false   -- mutex: un solo ciclo de disparo a la vez
-    local _soruZ_lastFire    = 0       -- os.clock() del último disparo
-    local _soruZ_cooldown    = 0.35    -- cooldown mínimo entre disparos (segundos)
-    -- "dentro de hitbox" = distancia al root del enemigo <= este umbral (studs)
-    -- Si el HBX proxy existe usamos su tamaño, si no usamos 6 studs fijo
-    local _HBX_THRESHOLD     = 6       -- fallback cuando no hay proxy
-
-    -- ── Obtener radio efectivo de hitbox de un jugador ───────────────────────
-    local function getHitboxRadius(p)
-        -- Si el proxy del HBX está activo, usar su tamaño real
-        if _hbxOriginals and _hbxOriginals[p] and _hbxOriginals[p].proxy then
-            local sz = _hbxOriginals[p].proxy.Size
-            -- Radio = mitad de la dimensión más grande
-            return math.max(sz.X, sz.Y, sz.Z) * 0.5
-        end
-        -- Fallback: tamaño configurado en S.hbx_size (si está definido)
-        if S.hbx_size and S.hbx_size > 0 then
-            return S.hbx_size
-        end
-        return _HBX_THRESHOLD
-    end
-
-    -- ── Obtener el enemigo más cercano dentro del rango ──────────────────────
-    local function getSoruTarget()
-        local myChar = player.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myRoot then return nil, nil, math.huge end
-
-        local best      = nil
-        local bestP     = nil
-        local bestDist  = math.huge
-
-        for _, p in ipairs(Players:GetPlayers()) do
-            if shouldSkipPlayer(p) then continue end
-            local char = p.Character; if not char then continue end
-            local hum  = char:FindFirstChildOfClass("Humanoid")
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if not hum or hum.Health <= 0 or not root then continue end
-            if char:FindFirstChild("SafeZoneShield") then continue end
-            local dist = (root.Position - myRoot.Position).Magnitude
-            if dist < (S.PlayerSoruZRange or 120) and dist < bestDist then
-                bestDist = dist
-                best     = root
-                bestP    = p
-            end
-        end
-        return best, bestP, bestDist
-    end
-
-    -- ── Comprobar si el LocalPlayer YA está dentro de la hitbox del objetivo ─
-    -- Devuelve true  → ya estamos encima, NO disparar
-    -- Devuelve false → no estamos encima, SÍ disparar Z
-    local function isInsideHitbox(myRoot, targetRoot, targetPlayer)
-        if not myRoot or not targetRoot then return false end
-        local dist = (myRoot.Position - targetRoot.Position).Magnitude
-        local radius = getHitboxRadius(targetPlayer)
-        -- Consideramos "dentro" si la distancia es menor al radio + pequeño margen
-        return dist <= (radius + 1.5)
-    end
-
-    -- ── Orientar personaje hacia el objetivo (plano XZ) ─────────────────────
-    local function faceTarget(myRoot, targetRoot)
-        if not myRoot or not targetRoot then return end
-        pcall(function()
-            local dir = (targetRoot.Position - myRoot.Position) * Vector3.new(1, 0, 1)
-            if dir.Magnitude < 0.1 then return end
-            myRoot.CFrame = CFrame.new(myRoot.Position, myRoot.Position + dir.Unit)
-        end)
-    end
-
-    -- ── Snap de cámara instantáneo al objetivo ───────────────────────────────
-    local function snapCameraToTarget(targetRoot)
-        if not targetRoot then return end
-        pcall(function()
-            local camPos    = camera.CFrame.Position
-            local targetPos = Vector3.new(
-                targetRoot.Position.X,
-                targetRoot.Position.Y + 1.5,
-                targetRoot.Position.Z
-            )
-            local dir = targetPos - camPos
-            if dir.Magnitude < 0.1 then return end
-            camera.CFrame = CFrame.lookAt(camPos, camPos + dir.Unit)
-        end)
-    end
-
-    -- ── Simular pulsación de tecla (multi-método para distintos executors) ───
-    local function pressKey(keyName)
-        local kc = Enum.KeyCode[keyName]
-        if not kc then return end
-
-        local pressed = false
-
-        -- Método 1: keypress / keyrelease  (Synapse X, KRNL, Fluxus PC)
-        pcall(function()
-            if keypress and keyrelease then
-                keypress(kc.Value)
-                task.wait(0.045)
-                keyrelease(kc.Value)
-                pressed = true
-            end
-        end)
-        if pressed then return end
-
-        -- Método 2: VirtualInputManager  (Synapse V3, algunas builds internas)
-        pcall(function()
-            if VirtualInputManager then
-                VirtualInputManager:SendKeyEvent(true,  kc, false, game)
-                task.wait(0.045)
-                VirtualInputManager:SendKeyEvent(false, kc, false, game)
-                pressed = true
-            end
-        end)
-        if pressed then return end
-
-        -- Método 3: fireproximityprompt / firetouchinterest no aplican aquí;
-        -- Fallback final: simulateEvent (Fluxus Mobile, Wave)
-        pcall(function()
-            local uis = game:GetService("UserInputService")
-            local fakeDown = {
-                UserInputType = Enum.UserInputType.Keyboard,
-                KeyCode       = kc,
-                Delta         = Vector3.zero,
-                Position      = Vector3.zero,
-                IsModifierKeyDown = function() return false end,
-            }
-            uis:simulateEvent(Enum.UserInputType.Keyboard, fakeDown)
-            task.wait(0.045)
-            -- simulateEvent no necesita un "up" separado en la mayoría de executors
-        end)
-    end
-
-    -- ── Ciclo de disparo: orienta, snapea cámara y dispara Z N veces ─────────
-    local function fireZKey()
-        if _soruZ_firing then return end
-        _soruZ_firing = true
-
-        local keyName     = S.PlayerSoruZKey     or "Z"
-        local repeatCount = math.clamp(math.floor(S.PlayerSoruZRepeat   or 1), 1, 5)
-        local interval    = math.clamp(S.PlayerSoruZInterval             or 0.06, 0.01, 1)
-        local preDelay    = math.clamp(S.PlayerSoruZDelay                or 0.08, 0,   0.5)
-
-        task.spawn(function()
-            if preDelay > 0 then task.wait(preDelay) end
-
-            for i = 1, repeatCount do
-                -- Re-obtener objetivo y orientar ANTES de cada pulsación
-                local myChar = player.Character
-                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-                local target, _, _ = getSoruTarget()
-
-                if target then
-                    if S.PlayerSoruZCamSnap then snapCameraToTarget(target) end
-                    if S.PlayerSoruZAutoDir then faceTarget(myRoot, target) end
-                end
-
-                pressKey(keyName)
-
-                if i < repeatCount then
-                    task.wait(interval)
-                end
-            end
-
-            _soruZ_firing = false
-        end)
-    end
-
-    -- ── Loop principal: se ejecuta cada RenderStepped ────────────────────────
-    -- Lógica:
-    --   1. Si el toggle está OFF → no hace nada.
-    --   2. Obtiene el enemigo más cercano dentro del rango.
-    --   3. Si NO estamos dentro de su hitbox → disparar Z y esperar cooldown.
-    --   4. Si SÍ estamos dentro → silencio total (ya estamos encima, el ataque
-    --      físico normal conecta solo).
-    RunService.RenderStepped:Connect(function()
-        if not S.PlayerSoruZEnabled then return end
-
-        -- Cooldown entre disparos
-        local now = os.clock()
-        if now - _soruZ_lastFire < _soruZ_cooldown then return end
-
-        -- Mutex: no lanzar si ya estamos en medio de un ciclo
-        if _soruZ_firing then return end
-
-        local myChar = player.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myRoot then return end
-
-        local myHum = myChar:FindFirstChildOfClass("Humanoid")
-        if not myHum or myHum.Health <= 0 then return end
-
-        -- Obtener objetivo
-        local target, targetP, dist = getSoruTarget()
-        if not target or not targetP then return end   -- sin enemigos en rango
-
-        -- Comprobar si YA estamos dentro de la hitbox
-        if isInsideHitbox(myRoot, target, targetP) then
-            -- Estamos encima → NO disparar auto-Z
-            -- (el Soru ya llevó al personaje ahí; el ataque manual conecta)
-            return
-        end
-
-        -- NO estamos en la hitbox → disparar Z auto-dirigida al enemigo
-        _soruZ_lastFire = now
-
-        -- Snap de cámara inmediato ANTES de spawnar el ciclo de disparo
-        if S.PlayerSoruZCamSnap then snapCameraToTarget(target) end
-        if S.PlayerSoruZAutoDir then faceTarget(myRoot, target)  end
-
-        fireZKey()
-
-        -- Notificación discreta (solo cada cierto tiempo para no spamear)
-        showNotif(
-            "✝  Auto Z",
-            "→ " .. targetP.Name .. " (" .. math.floor(dist) .. " st)",
-            true
-        )
-    end)
-
-    -- ── Refrescadores de toggle ───────────────────────────────────────────────
-    refreshers["PlayerSoruZEnabled"] = function()
-        if not S.PlayerSoruZEnabled then
-            _soruZ_firing    = false
-            _soruZ_lastFire  = 0
-        end
-        save()
-    end
-end
-
--- ── AJUSTES PAGE ══════════════════════════════════
+-- ══ AJUSTES PAGE ══════════════════════════════════
 local cfgCard = makeCard(pg_ajustes)
 makeSecHeader(cfgCard, "†", "Settings")
 
@@ -2340,7 +1931,6 @@ local guiColorRow, guiColorPop = makeColorPicker(cfgCard, "GUI Accent Color",
 
 -- Activar página 1 por defecto
 setPage = setPage  -- referencia correcta (definida arriba con forward)
-
 pages[1].Visible = true
 navBtns[1].BackgroundColor3 = Color3.fromRGB(36,30,46)
 navBtns[1].BackgroundTransparency = 0.5
@@ -2351,7 +1941,7 @@ for _, ch in ipairs(navBtns[1]:GetChildren()) do
 end
 
 -- Expose tabPages alias para compatibilidad con keybinds toggle
-local tabPages = {pages[1], pages[2], pages[3], pages[4], pages[5], pages[6]}  -- dummy, no se usa con tabs
+local tabPages = {pages[1], pages[2], pages[3], pages[4]}  -- dummy, no se usa con tabs
 
 -- ══════════════════════════════════════════════
 --  DRAG — mover panel (por el header)
@@ -2739,19 +2329,13 @@ end
 applyHitbox = function(p, on)
     if not p.Character then return end
     local root = p.Character:FindFirstChild("HumanoidRootPart"); if not root then return end
-    if on then
-        local hum = p.Character:FindFirstChildOfClass("Humanoid")
-        if not hum or hum.Health <= 1 then
-            on = false
-        end
-    end
-    
+
     if on then
         -- NO tocar root.Size (congela al jugador)
         -- Crear un Part proxy invisible soldado al root
         if not _hbxOriginals[p] then
             _hbxOriginals[p] = { proxy = nil, weld = nil }
-            
+
             local s = S.hbx_size * 2
             local proxy = Instance.new("Part")
             proxy.Name = "x7sHitboxProxy"
@@ -2765,14 +2349,14 @@ applyHitbox = function(p, on)
             proxy.TopSurface = Enum.SurfaceType.Smooth
             proxy.BottomSurface = Enum.SurfaceType.Smooth
             proxy.Parent = p.Character
-            
+
             local weld = Instance.new("Weld")
             weld.Name = "x7sHbxWeld"
             weld.Part0 = root
             weld.Part1 = proxy
             weld.C0 = CFrame.new(0, 0, 0)
             weld.Parent = root
-            
+
             _hbxOriginals[p].proxy = proxy
             _hbxOriginals[p].weld = weld
         end
@@ -2842,7 +2426,7 @@ RunService.RenderStepped:Connect(function()
             if obj.itemTag   then obj.itemTag.Visible   = false end
             continue
         end
-        
+
         local char = p.Character
         local function allOff()
             for _, hl in pairs(obj.highlights) do pcall(function() hl.Enabled = false end) end
@@ -2881,7 +2465,7 @@ RunService.RenderStepped:Connect(function()
             local targetSize = isVis2 
                 and (S.hbx_size * 2)      -- Expandido si está visible
                 or  2                      -- Normal si está detrás de pared
-            
+
             pcall(function()
                 local currentSize = _hbxOriginals[p].proxy.Size.X
                 if math.abs(currentSize - targetSize) > 0.1 then
@@ -3068,6 +2652,133 @@ local camLockTarget=nil
 -- ══════════════════════════════════════════════
 --  FOV CIRCLE (igual a SyyClient)
 -- ══════════════════════════════════════════════
+-- ===============================================================
+--  SILENT AIM (migrado de SyyClient - VisibleCheck/Manipulation/HitChance)
+-- ===============================================================
+local cachedTargetPos = nil
+
+local wallbreakParams = RaycastParams.new()
+wallbreakParams.FilterType = Enum.RaycastFilterType.Include
+wallbreakParams.FilterDescendantsInstances = {}
+
+-- Hook __namecall: intercepta Raycast / FindPartOnRay* y redirige al objetivo
+pcall(function()
+    if not hookmetamethod then return end
+    local oldNC
+    oldNC = hookmetamethod(game, "__namecall", newcclosure(function(...)
+        local method = getnamecallmethod()
+        local usePos = cachedTargetPos
+        if not (S.SilentAimEnabled and usePos) then return oldNC(...) end
+        if checkcaller() then return oldNC(...) end
+        if math.random(100) > S.HitChance then return oldNC(...) end
+
+        local args = { ... }
+        if args[1] ~= workspace then return oldNC(...) end
+
+        if method == "Raycast" then
+            if typeof(args[2]) ~= "Vector3" or typeof(args[3]) ~= "Vector3" then return oldNC(...) end
+            args[3] = (usePos - args[2]).Unit * 1000
+            if S.Manipulation then args[4] = wallbreakParams end
+            return oldNC(table.unpack(args))
+        elseif method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRay" then
+            if typeof(args[2]) ~= "Ray" then return oldNC(...) end
+            local o = args[2].Origin
+            args[2] = Ray.new(o, (usePos - o).Unit * 1000)
+            if S.Manipulation and method == "FindPartOnRayWithIgnoreList" then args[3] = {} end
+            return oldNC(table.unpack(args))
+        end
+        return oldNC(...)
+    end))
+end)
+
+-- Deteccion de disparo (PC: click izq / Movil: lado derecho de pantalla)
+local saIsFiring = false
+UserInputService.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then saIsFiring = true
+    elseif inp.UserInputType == Enum.UserInputType.Touch then
+        if inp.Position.X > camera.ViewportSize.X * 0.35 then saIsFiring = true end
+    end
+end)
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1
+    or inp.UserInputType == Enum.UserInputType.Touch then
+        task.delay(0.08, function() saIsFiring = false end)
+    end
+end)
+
+-- Calculo del objetivo cada 2 frames (misma logica que SyyClient)
+local _saFrame = 0
+RunService.RenderStepped:Connect(function()
+    _saFrame = _saFrame + 1
+    if _saFrame % 2 ~= 0 then return end
+
+    if not S.SilentAimEnabled then cachedTargetPos = nil; return end
+
+    local myChar = player.Character
+    local vp = camera.ViewportSize
+    local center = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
+    local fovLimit = streamModeOn and math.huge or S.fov_radius
+
+    -- wallbreakParams solo se refresca si Manipulation esta ON
+    if S.Manipulation then
+        local chars = {}
+        for _, p in ipairs(_plrList) do
+            if p ~= player and p.Character then chars[#chars+1] = p.Character end
+        end
+        wallbreakParams.FilterDescendantsInstances = chars
+    end
+
+    local bestD, bestPos = math.huge, nil
+    for _, p in ipairs(_plrList) do
+        if shouldSkipPlayer(p) then continue end
+        local char = p.Character; if not char then continue end
+        local hum  = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not hum or hum.Health <= 0 or not root then continue end
+
+        local sp2, onS = camera:WorldToViewportPoint(root.Position)
+        local d2 = (Vector2.new(sp2.X, sp2.Y) - center).Magnitude
+
+        if S.VisibleCheck then
+            if not onS then continue end
+            if d2 > fovLimit then continue end
+            if not S.Manipulation then
+                local ok, obs = pcall(function()
+                    return camera:GetPartsObscuringTarget({root.Position}, {myChar, char})
+                end)
+                if ok and #obs > 0 then continue end
+            end
+        else
+            if not streamModeOn and d2 > fovLimit then continue end
+            if not onS then continue end
+            if not S.Manipulation then
+                local ok, obs = pcall(function()
+                    return camera:GetPartsObscuringTarget({root.Position}, {myChar, char})
+                end)
+                if ok and #obs > 0 then continue end
+            end
+        end
+
+        if d2 < bestD then
+            bestD = d2
+            local pn = S.TargetPart
+            if pn == "Random" then
+                local r = math.random(100)
+                pn = r <= 30 and "Head" or (r <= 80 and "UpperTorso" or "LowerTorso")
+            elseif pn == "Pierna" then pn = "LowerTorso"
+            elseif pn == "Pecho"  then pn = "UpperTorso"
+            elseif pn == "Combo"  then
+                local r = math.random(100)
+                pn = r <= 35 and "LowerTorso" or (r <= 85 and "UpperTorso" or "Head")
+            end
+            local hp = char:FindFirstChild(pn) or root
+            bestPos = hp.Position
+        end
+    end
+    cachedTargetPos = bestPos
+end)
+
+
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible      = false
 fovCircle.Thickness    = 1.5
@@ -3248,22 +2959,66 @@ task.defer(function()
 end)
 
 
-task.spawn(function()
-    local folder = workspace:WaitForChild("Spawnables"):WaitForChild("SpawnablesClient")
-    local lastSeen = 0
-    while task.wait(1.0) do
-        if not S.summer_on then continue end
-        local count = 0
-        for _, spawn in ipairs(folder:GetChildren()) do
-            if spawn:IsA("BasePart") or spawn.PrimaryPart or spawn:FindFirstChildWhichIsA("BasePart", true) then
-                count += 1
-            end
+-- == BOTON FLOTANTE (abrir/cerrar GUI en movil sin teclado) ======
+if isMobile then
+    local fb = Instance.new("TextButton", gui)
+    fb.Name = "x7sToggle"; fb.Size = UDim2.fromOffset(54, 54)
+    fb.AnchorPoint = Vector2.new(0, 0.5)
+    fb.Position = UDim2.new(0, 16, 0.4, 0)
+    fb.BackgroundColor3 = Color3.fromRGB(12, 9, 18); fb.BorderSizePixel = 0
+    fb.Text = "x7s"; fb.TextColor3 = accentColor
+    fb.Font = Enum.Font.GothamBlack; fb.TextSize = 15; fb.ZIndex = 250
+    fb.AutoButtonColor = false
+    Instance.new("UICorner", fb).CornerRadius = UDim.new(1, 0)
+    local fbs = Instance.new("UIStroke", fb); fbs.Color = accentColor; fbs.Thickness = 1.5; fbs.Transparency = 0.3
+
+    local dragging, dStart, bStart = false, nil, nil
+    fb.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dStart = inp.Position; bStart = fb.AbsolutePosition
         end
-        if count > 0 and os.clock() - lastSeen > 5 then
-            lastSeen = os.clock()
-            showNotif("✝  Summer 2026", tostring(count).." drop(s) active", true)
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if dragging and inp.UserInputType == Enum.UserInputType.Touch then
+            local d = inp.Position - dStart
+            fb.AnchorPoint = Vector2.new(0, 0)
+            fb.Position = UDim2.fromOffset(bStart.X + d.X, bStart.Y + d.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Touch then
+            -- tap (sin arrastre) = toggle del panel
+            if dragging and dStart and (inp.Position - dStart).Magnitude < 6 then
+                if panel.Visible then
+                    panel.Visible = false; glow.Visible = false
+                else
+                    panel.Visible = true; glow.Visible = true
+                    panel.BackgroundTransparency = 0
+                end
+            end
+            dragging = false
+        end
+    end)
+end
+
+task.spawn(function()
+    local remote = game:GetService("ReplicatedStorage").Packages.Networking:WaitForChild("RE/Events/CollectEventSpawnable")
+    local folder = workspace:WaitForChild("Spawnables"):WaitForChild("SpawnablesClient")
+    while task.wait(0.3) do
+        if not S.summer_on then continue end
+        for _, spawn in ipairs(folder:GetChildren()) do
+            -- Intenta con "Touch", si no existe usa cualquier BasePart del modelo
+            local touch = spawn:FindFirstChild("Touch")
+                       or spawn:FindFirstChildOfClass("Part")
+                       or spawn:FindFirstChildOfClass("MeshPart")
+                       or (spawn:IsA("BasePart") and spawn)
+            if touch then
+                pcall(function()
+                    remote:FireServer(touch)
+                    spawn:Destroy()
+                end)
+                task.wait(0.05)
+            end
         end
     end
 end)
-
-print("   "..S.gui_key.." = GUI  ·  "..S.esp_key.." = ESP  ·  "..S.hbx_key.." = HBX  ·  "..S.camlock_key.." = CamLock")
